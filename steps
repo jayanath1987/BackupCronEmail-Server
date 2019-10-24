@@ -1,0 +1,5 @@
+vim /usr/bin/getmysqlrepl.sh
+chmod 777 /usr/bin/getmysqlrepl.sh
+/usr/bin/getmysqlrepl.sh
+
+*/30 * * * * /usr/bin/getmysqlrepl.sh
