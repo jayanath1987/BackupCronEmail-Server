@@ -1,0 +1,55 @@
+#!/bin/bash
+MasterHost="10.x.x.x"
+SlaveHost="127.0.0.1"
+emails="email@icta.lk" #multiple emails space separated
+HOST="sudo mysql --user=root --password=root" ##for your password security create seperate user for Alert.
+
+
+SQLresponse=$($HOST -e "show slave status \G" |grep -i "Slave_SQL_Running"|gawk '{print $2}')
+IOresponse=$($HOST -e "show slave status \G" |grep -i "Slave_IO_Running"|gawk '{print $2}')
+SSTATUS=$($HOST -e "SHOW SLAVE STATUS\G" | egrep "Master_Host|Master_User|Master_Log_File|Slave_IO_Running|Slave_SQL_Running|Last_Errno|Last_Error|Seconds_Behind_Master")
+SLAVEBEHIND=$($HOST -e "show slave status \G" |grep -i "Seconds_Behind_Master"|gawk '{print $2}')
+
+
+
+if [ "$SQLresponse" == "No" ]
+ then
+       ERRMSG="Replication on the slave MySQL server($SlaveHost) has stopped working"$'\n'"$SSTATUS"
+    DownSubject="Replication Status Down on $SlaveHost - $MasterHost"
+      status=1
+elif [ "$IOresponse" == "No" ]
+ then
+      ERRMSG="Replication on the slave MySQL server($SlaveHost) has stopped working"$'\n'"$SSTATUS"
+      DownSubject="Replication Status Down on $SlaveHost - $MasterHost"
+   status=1
+elif [ "$SLAVEBEHIND" == "NULL" ]
+ then
+  ERRMSG="The Slave is reporting 'NULL' (Seconds_Behind_Master)"$'\n'"$SSTATUS"
+  DownSubject="Replication Status Down on $SlaveHost - $MasterHost"
+  status=1
+elif [ "$SLAVEBEHIND" != 0 ]
+ then
+    ERRMSG="The Slave is at least $SLAVEBEHIND seconds behind the master (Seconds_Behind_Master)"$'\n'"$SSTATUS"
+ DownSubject="Replication Status Lag Behind $SLAVEBEHIND on $SlaveHost"
+ status=1
+else
+ GoodSubject="Replication Status UP on $SlaveHost"
+    GoodMessage="MySQL replication on $SlaveHost is working fine"$'\n'"$SSTATUS"
+ status=0
+fi
+
+# Sending mail Alert....
+
+if [ $status == 1 ]
+ then
+      for address in $emails; do
+                echo -e $ERRMSG | mail -s "$DownSubject" $address
+                echo "$(date): On $SlaveHost Replication down, sent email to $address"$'\n'"$ERRMSG" >> /home/icta/maillog.log ##writing log file for mail alert
+      done
+#elif [ $status == 0 ]
+# then
+#      for address in $emails; do
+#                echo -e $ERRMSG | mail -s "$GoodSubject" $address
+#                echo "$(date): On $SlaveHost Replication UP, sent email to $address"$'\n'"$GoodMessage" >> /home/icta/maillog.log ##writing log file for mail alert
+#      done
+fi
